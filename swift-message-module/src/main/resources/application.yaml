@@ -1,0 +1,26 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/swift_message
+    username: root
+    password: 114514
+  sql:
+    init:
+      mode: never
+      schema-locations: classpath:schema.sql
+
+swift:
+  inbound-port: 15001
+  swift-host: localhost
+  swift-port: 15002
+  bic: OURBICXX
+  counterparty-bic: THEIRBIC
+  pacs002-delay-seconds: 5
+  clearing-base-url: http://localhost:8081
+  payment-base-url: http://localhost:8082
+
+simulator:
+  enabled: true

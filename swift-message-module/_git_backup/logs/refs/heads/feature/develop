@@ -1,0 +1,6 @@
+0000000000000000000000000000000000000000 20fa9bf9781a1ca90e47ddc77e4d8b5a64530baa kikuchiyo1 <2674866249@qq.com> 1784083020 +0800	branch: Created from HEAD
+20fa9bf9781a1ca90e47ddc77e4d8b5a64530baa b3cd2c8ad28ae0dd5b95851f0a9fe05530b92bbf kikuchiyo1 <2674866249@qq.com> 1784182697 +0800	commit: C1: 表拆分 — swift_message → outbound + inbound 两张表。新增 OutboundMessage / InboundMessage，删除旧 Message.java
+b3cd2c8ad28ae0dd5b95851f0a9fe05530b92bbf f75f014a5d73970b4f3d0eadfb2ea5fb92908795 kikuchiyo1 <2674866249@qq.com> 1784182758 +0800	commit: C2: Mapper拆分 — 删 MessageMapper，新建 OutboundMessageMapper + InboundMessageMapper，分别对应收发两张表
+f75f014a5d73970b4f3d0eadfb2ea5fb92908795 9bea2718a3fad86662b9747881208754843f231d kikuchiyo1 <2674866249@qq.com> 1784183192 +0800	commit: C3: 调用方适配 — OutboundSender用OutboundMessage+OutboundMessageMapper；MessageController发报存outbound表，查询从inbound表
+9bea2718a3fad86662b9747881208754843f231d 28754e92ed99bd3e9bd8ebc914af9f982a367449 kikuchiyo1 <2674866249@qq.com> 1784183435 +0800	commit: C4-C8: 收报长连接改造 + pacs.002路由修正 + 全链路日志
+28754e92ed99bd3e9bd8ebc914af9f982a367449 20fa9bf9781a1ca90e47ddc77e4d8b5a64530baa kikuchiyo1 <2674866249@qq.com> 1784184689 +0800	reset: moving to 20fa9bf9781a1ca90e47ddc77e4d8b5a64530baa
