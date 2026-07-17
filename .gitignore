@@ -12,3 +12,6 @@ Thumbs.db
 
 # === Logs ===
 *.log
+
+# === Git backup (from submodule migration) ===
+_git_backup/
