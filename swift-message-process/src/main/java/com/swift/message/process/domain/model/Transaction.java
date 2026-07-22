@@ -131,13 +131,13 @@ public class Transaction {
         private String creditorAgentBic;
 
         /** XML 路径：{@code CdtTrfTxInf/InitgPty/Nm}。含义：发起方名称；{@code InitgPty} 非必传。 */
-        private String initiatingPartyName;
+        private String initgPtyNm;
 
         /** XML 路径：{@code CdtTrfTxInf/UltmtDbtr/Nm}。含义：最终付款人名称；{@code UltmtDbtr} 非必传。 */
-        private String ultimateDebtorName;
+        private String ultmtDbtrNm;
 
         /** XML 路径：{@code CdtTrfTxInf/UltmtCdtr/Nm}。含义：最终收款人名称；{@code UltmtCdtr} 非必传。 */
-        private String ultimateCreditorName;
+        private String ultmtCdtrNm;
 
         /**
          * XML 路径：{@code CdtTrfTxInf/Purp/Cd} 或 {@code CdtTrfTxInf/Purp/Prtry}。含义：付款用途；非必传。

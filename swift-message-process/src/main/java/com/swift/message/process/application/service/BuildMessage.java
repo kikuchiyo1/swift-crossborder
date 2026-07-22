@@ -11,6 +11,7 @@ import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 import java.io.StringWriter;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -131,15 +132,15 @@ public final class BuildMessage {
         agent(writer, INSTRUCTING_AGENT, transaction.getInstructingAgentBic());
         agent(writer, INSTRUCTED_AGENT, transaction.getInstructedAgentBic());
         agents(writer, INTERMEDIARY_AGENT_PREFIX, transaction.getIntrmyAgtBics());
-        party(writer, ULTIMATE_DEBTOR, transaction.getUltimateDebtorName(), null);
-        party(writer, INITIATING_PARTY, transaction.getInitiatingPartyName(), null);
+        party(writer, ULTIMATE_DEBTOR, transaction.getUltmtDbtrNm(), null);
+        party(writer, INITIATING_PARTY, transaction.getInitgPtyNm(), null);
         party(writer, DEBTOR, transaction.getDebtorName(), transaction.getDebtorAddress());
         account(writer, DEBTOR_ACCOUNT, transaction.getDebtorAccount());
         agent(writer, DEBTOR_AGENT, transaction.getDebtorAgentBic());
         agent(writer, CREDITOR_AGENT, transaction.getCreditorAgentBic());
         party(writer, CREDITOR, transaction.getCreditorName(), transaction.getCreditorAddress());
         account(writer, CREDITOR_ACCOUNT, transaction.getCreditorAccount());
-        party(writer, ULTIMATE_CREDITOR, transaction.getUltimateCreditorName(), null);
+        party(writer, ULTIMATE_CREDITOR, transaction.getUltmtCdtrNm(), null);
         instructions(writer, INSTRUCTION_FOR_CREDITOR_AGENT, transaction.getInstructionsForCreditorAgent());
         instructions(writer, INSTRUCTION_FOR_NEXT_AGENT, transaction.getInstructionsForNextAgent());
         choice(writer, PURPOSE, transaction.getPurposeCd());
@@ -329,6 +330,9 @@ public final class BuildMessage {
         }
         require(groupHdr.getMsgId(), "GrpHdr/MsgId");
         require(groupHdr.getCreDtTime(), "GrpHdr/CreDtTm");
+        require(groupHdr.getCtrlSum(), "GrpHdr/CtrlSum");
+        require(groupHdr.getTtlIntrBkSttlmValue(), "GrpHdr/TtlIntrBkSttlmAmt");
+        require(groupHdr.getTtlIntrBkSttlmCcy(), "GrpHdr/TtlIntrBkSttlmAmt/@Ccy");
         require(groupHdr.getSettlementMethod(), "GrpHdr/SttlmInf/SttlmMtd");
         if (groupHdr.getNumberOfTransactions() == null) {
             throw buildError("缺少必传字段 GrpHdr/NbOfTxs");
@@ -349,6 +353,86 @@ public final class BuildMessage {
             require(transaction.getDebtorAgentBic(), "CdtTrfTxInf/DbtrAgt/.../BICFI");
             require(transaction.getCreditorAgentBic(), "CdtTrfTxInf/CdtrAgt/.../BICFI");
             require(transaction.getCreditorName(), "CdtTrfTxInf/Cdtr/Nm");
+            requireCurrencyWhenAmountPresent(transaction.getInstdAmtValue(), transaction.getInstdAmtCcy(),
+                    "CdtTrfTxInf/InstdAmt/@Ccy");
+            validateCollections(transaction);
+            validateAddress(transaction.getDebtorAddress(), "CdtTrfTxInf/Dbtr/PstlAdr");
+            validateAddress(transaction.getCreditorAddress(), "CdtTrfTxInf/Cdtr/PstlAdr");
+        }
+        validateControlSum(groupHdr.getCtrlSum(), transactions);
+        validateTotalAmount(groupHdr, transactions);
+    }
+
+    private static void validateControlSum(String controlSum, List<Transaction> transactions) {
+        try {
+            BigDecimal expected = new BigDecimal(controlSum);
+            BigDecimal actual = transactions.stream()
+                    .map(Transaction::getIntrBkSttlmValue)
+                    .map(BigDecimal::new)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (expected.compareTo(actual) != 0) {
+                throw buildError("GrpHdr/CtrlSum 与全部 IntrBkSttlmAmt 合计不一致");
+            }
+        } catch (NumberFormatException exception) {
+            LOGGER.log(Level.WARNING, "CtrlSum 或 IntrBkSttlmAmt 不是合法十进制数", exception);
+            throw new MessageBuildException("CtrlSum 或 IntrBkSttlmAmt 不是合法十进制数", exception);
+        }
+    }
+
+    private static void validateTotalAmount(GroupHdr groupHdr, List<Transaction> transactions) {
+        try {
+            BigDecimal expected = new BigDecimal(groupHdr.getTtlIntrBkSttlmValue());
+            BigDecimal actual = transactions.stream()
+                    .map(Transaction::getIntrBkSttlmValue)
+                    .map(BigDecimal::new)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (expected.compareTo(actual) != 0) {
+                throw buildError("GrpHdr/TtlIntrBkSttlmAmt 与全部 IntrBkSttlmAmt 合计不一致");
+            }
+            boolean currencyMismatch = transactions.stream()
+                    .map(Transaction::getIntrBkSttlmCcy)
+                    .anyMatch(currency -> !groupHdr.getTtlIntrBkSttlmCcy().equals(currency));
+            if (currencyMismatch) {
+                throw buildError("GrpHdr/TtlIntrBkSttlmAmt/@Ccy 与交易 IntrBkSttlmAmt/@Ccy 不一致");
+            }
+        } catch (NumberFormatException exception) {
+            LOGGER.log(Level.WARNING, "TtlIntrBkSttlmAmt 或 IntrBkSttlmAmt 不是合法十进制数", exception);
+            throw new MessageBuildException("TtlIntrBkSttlmAmt 或 IntrBkSttlmAmt 不是合法十进制数", exception);
+        }
+    }
+
+    private static void validateCollections(Transaction transaction) {
+        requireList(transaction.getCharges(), "CdtTrfTxInf/ChrgsInf");
+        requireList(transaction.getPreIntrmyAgtBics(), "CdtTrfTxInf/PrvsInstgAgt");
+        requireList(transaction.getIntrmyAgtBics(), "CdtTrfTxInf/IntrmyAgt");
+        requireList(transaction.getInstructionsForCreditorAgent(), "CdtTrfTxInf/InstrForCdtrAgt");
+        requireList(transaction.getInstructionsForNextAgent(), "CdtTrfTxInf/InstrForNxtAgt");
+        requireList(transaction.getRegulatoryReportingInformation(), "CdtTrfTxInf/RgltryRptg");
+        requireList(transaction.getRmtInfUstrd(), "CdtTrfTxInf/RmtInf");
+        for (ChargeInfo charge : transaction.getCharges()) {
+            if (charge == null) {
+                throw buildError("CdtTrfTxInf/ChrgsInf 不能包含 null");
+            }
+            require(charge.getAmount(), "CdtTrfTxInf/ChrgsInf/Amt");
+            require(charge.getCurrency(), "CdtTrfTxInf/ChrgsInf/Amt/@Ccy");
+        }
+    }
+
+    private static void validateAddress(PostalAddress address, String path) {
+        if (address != null && !hasStructuredAddress(address)) {
+            throw buildError(path + " 必须包含结构化地址字段，不能只提供 AdrLine");
+        }
+    }
+
+    private static void requireCurrencyWhenAmountPresent(String amount, String currency, String path) {
+        if (hasText(amount)) {
+            require(currency, path);
+        }
+    }
+
+    private static void requireList(List<?> values, String path) {
+        if (values == null) {
+            throw buildError(path + " 集合不能为 null，请使用空列表表示无数据");
         }
     }
 

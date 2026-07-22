@@ -87,7 +87,7 @@ class ParseMessageTest {
         assertEquals("2.50", transaction.getCharges().getFirst().getAmount());
         assertEquals("Berlin", transaction.getDebtorAddress().getTownName());
         assertEquals("FR", transaction.getCreditorAddress().getCountry());
-        assertEquals("Ultimate Debtor", transaction.getUltimateDebtorName());
+        assertEquals("Ultimate Debtor", transaction.getUltmtDbtrNm());
         assertEquals("GDDS", transaction.getPurposeCd());
         assertEquals(2, transaction.getRmtInfUstrd().size());
         assertEquals("PREVIOUSBIC", transaction.getPreIntrmyAgtBics().getFirst());
@@ -121,9 +121,39 @@ class ParseMessageTest {
     }
 
     @Test
-    void rejectsMissingLayerAndDoctype() {
+    void rejectsMissingTargetLayer() {
         assertThrows(MessageParseException.class, () -> ParseMessage.groupHdrParse("<Document/>"));
+    }
+
+    @Test
+    void rejectsDoctype() {
         assertThrows(MessageParseException.class,
                 () -> ParseMessage.appHdrParse("<!DOCTYPE x [<!ENTITY e SYSTEM 'file:///etc/passwd'>]><AppHdr>&e;</AppHdr>"));
+    }
+
+    @Test
+    void rejectsPacs008WithoutControlSum() {
+        String messageWithoutControlSum = MESSAGE.replace("<CtrlSum>125.50</CtrlSum>", "");
+
+        assertThrows(MessageParseException.class,
+                () -> ParseMessage.groupHdrParse(messageWithoutControlSum));
+    }
+
+    @Test
+    void rejectsPacs008WithoutTotalInterbankSettlementAmount() {
+        String messageWithoutTotalAmount = MESSAGE.replace(
+                "<TtlIntrBkSttlmAmt Ccy=\"USD\">125.50</TtlIntrBkSttlmAmt>", "");
+
+        assertThrows(MessageParseException.class,
+                () -> ParseMessage.groupHdrParse(messageWithoutTotalAmount));
+    }
+
+    @Test
+    void rejectsPacs008WithoutTotalInterbankSettlementCurrency() {
+        String messageWithoutCurrency = MESSAGE.replace(
+                "<TtlIntrBkSttlmAmt Ccy=\"USD\">", "<TtlIntrBkSttlmAmt>");
+
+        assertThrows(MessageParseException.class,
+                () -> ParseMessage.groupHdrParse(messageWithoutCurrency));
     }
 }

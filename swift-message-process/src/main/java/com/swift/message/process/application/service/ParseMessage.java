@@ -94,9 +94,9 @@ public final class ParseMessage {
         result.setCreditorAddress(postalAddress(transactionDetails, CREDITOR));
         result.setCreditorAccount(account(transactionDetails, CREDITOR_ACCOUNT));
         result.setCreditorAgentBic(bic(transactionDetails, CREDITOR_AGENT));
-        result.setInitiatingPartyName(text(transactionDetails, INITIATING_PARTY, NAME));
-        result.setUltimateDebtorName(text(transactionDetails, ULTIMATE_DEBTOR, NAME));
-        result.setUltimateCreditorName(text(transactionDetails, ULTIMATE_CREDITOR, NAME));
+        result.setInitgPtyNm(text(transactionDetails, INITIATING_PARTY, NAME));
+        result.setUltmtDbtrNm(text(transactionDetails, ULTIMATE_DEBTOR, NAME));
+        result.setUltmtCdtrNm(text(transactionDetails, ULTIMATE_CREDITOR, NAME));
         result.setPurposeCd(firstNonBlank(text(transactionDetails, PURPOSE, CODE), text(transactionDetails, PURPOSE, PROPRIETARY)));
         result.setRmtInfUstrd(remittanceInformation(transactionDetails));
         result.setPreIntrmyAgtBics(bics(transaction, PREVIOUS_INSTRUCTING_AGENT_1, PREVIOUS_INSTRUCTING_AGENT_2, PREVIOUS_INSTRUCTING_AGENT_3));
@@ -124,16 +124,25 @@ public final class ParseMessage {
 
     public static GroupHdr groupHdrParse(String message) {
         LOGGER.info("开始解析 GrpHdr");
-        Element group = requiredElement(parse(message), GROUP_HDR, "组头 GrpHdr");
+        Document document = parse(message);
+        Element group = requiredElement(document, GROUP_HDR, "组头 GrpHdr");
         Element totalAmount = element(group, TOTAL_INTERBANK_SETTLEMENT_AMOUNT);
+        String controlSum = text(group, CONTROL_SUM);
+        String totalAmountValue = value(totalAmount);
+        String totalAmountCurrency = attribute(totalAmount, CURRENCY);
+        if (firstElement(document, FI_TO_FI_CUSTOMER_CREDIT_TRANSFER) != null) {
+            requirePacs008GroupField(controlSum, "GrpHdr/CtrlSum");
+            requirePacs008GroupField(totalAmountValue, "GrpHdr/TtlIntrBkSttlmAmt");
+            requirePacs008GroupField(totalAmountCurrency, "GrpHdr/TtlIntrBkSttlmAmt/@Ccy");
+        }
         GroupHdr result = new GroupHdr();
         result.setMsgId(text(group, MESSAGE_ID));
         result.setCreDtTime(text(group, CREATION_DATE_TIME));
         result.setBatchBooking(booleanValue(text(group, BATCH_BOOKING)));
         result.setNumberOfTransactions(integerValue(text(group, NUMBER_OF_TRANSACTIONS), NUMBER_OF_TRANSACTIONS));
-        result.setCtrlSum(text(group, CONTROL_SUM));
-        result.setTtlIntrBkSttlmValue(value(totalAmount));
-        result.setTtlIntrBkSttlmCcy(attribute(totalAmount, CURRENCY));
+        result.setCtrlSum(controlSum);
+        result.setTtlIntrBkSttlmValue(totalAmountValue);
+        result.setTtlIntrBkSttlmCcy(totalAmountCurrency);
         result.setIntrBkSttlmDt(text(group, INTERBANK_SETTLEMENT_DATE));
         result.setSettlementMethod(text(group, SETTLEMENT_INFORMATION, SETTLEMENT_METHOD));
         result.setClearingSysCode(firstNonBlank(
@@ -143,6 +152,13 @@ public final class ParseMessage {
         result.setInstructedAgentBic(bic(group, INSTRUCTED_AGENT));
         LOGGER.info(() -> "GrpHdr 解析完成, MsgId=" + result.getMsgId());
         return result;
+    }
+
+    private static void requirePacs008GroupField(String value, String path) {
+        if (value == null || value.isBlank()) {
+            LOGGER.warning(() -> "GrpHdr 解析失败: pacs.008 缺少必传字段 " + path);
+            throw new MessageParseException("pacs.008 报文中缺少必传字段 " + path);
+        }
     }
 
     private static Document parse(String message) {

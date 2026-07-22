@@ -22,13 +22,22 @@ public class GroupHdr {
          */
         private Integer numberOfTransactions;
 
-        /** XML 路径：{@code GrpHdr/CtrlSum}。含义：交易金额控制总和；非必传，不存在等价替代 XML 字段。 */
+        /**
+         * XML 路径：{@code GrpHdr/CtrlSum}。含义：交易金额控制总和；当前 pacs.008 业务规范必传。
+         * 必须等于报文中全部 {@code CdtTrfTxInf/IntrBkSttlmAmt} 的合计，不存在替代 XML 字段。
+         */
         private String ctrlSum;
 
-        /** XML 路径：{@code GrpHdr/TtlIntrBkSttlmAmt}。含义：银行间结算总金额；非必传。 */
+        /**
+         * XML 路径：{@code GrpHdr/TtlIntrBkSttlmAmt}。含义：银行间结算总金额；当前 pacs.008 业务规范必传。
+         * 必须等于报文中全部 {@code CdtTrfTxInf/IntrBkSttlmAmt} 的合计。
+         */
         private String ttlIntrBkSttlmValue;
 
-        /** XML 属性：{@code GrpHdr/TtlIntrBkSttlmAmt/@Ccy}。含义：银行间结算总金额币种；金额存在时必传。 */
+        /**
+         * XML 属性：{@code GrpHdr/TtlIntrBkSttlmAmt/@Ccy}。含义：银行间结算总金额币种；
+         * 当前 pacs.008 业务规范必传，并且必须与每笔 {@code IntrBkSttlmAmt/@Ccy} 一致。
+         */
         private String ttlIntrBkSttlmCcy;
 
         /**
