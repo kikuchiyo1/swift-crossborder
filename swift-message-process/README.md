@@ -89,13 +89,13 @@ String multiTransactionBodyXml = BuildMessage.buildMessageBody(groupHdr, transac
 | `creditorAgentBic` | `CdtTrfTxInf/CdtrAgt/FinInstnId/BICFI` | 收款行 BIC |
 | `creditorName` | `CdtTrfTxInf/Cdtr/Nm` | 收款人名称 |
 
-其余交易字段为可选字段。`instdAmtValue` 存在时，`instdAmtCcy` 必传；每个 `ChargeInfo.amount` 存在时，
-对应的 `ChargeInfo.currency` 必传。
+其余交易字段为可选字段。`instdAmtValue` 存在时，`instdAmtCcy` 必传；`charges` 可以为空列表，但其中每个
+`ChargeInfo` 都不能为 `null`，且 `amount` 和 `currency` 均为必传字段。
 
 ### 集合和地址约束
 
 - `transactions` 不能为空、不能是空列表、不能包含 `null`，且数量必须等于 `GroupHdr.numberOfTransactions`。
-- `Transaction` 中的列表字段默认使用空列表；调用方不应通过 setter 将其设为 `null`。
+- `Transaction` 中的列表字段默认使用空列表；通过 setter 传入 `null` 时会归一化为空列表。
 - `debtorAddress` 或 `creditorAddress` 存在时，必须至少包含一个结构化地址字段，例如 `streetName`、`townName`、
   `postCode` 或 `country`。
 - 构建器不输出 `PostalAddress.addressLines` 对应的 `AdrLine`；地址只设置 `addressLines` 会抛出
