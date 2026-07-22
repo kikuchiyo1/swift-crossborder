@@ -1,24 +1,23 @@
 package com.swift.service;
 
 import com.swift.entity.InboundMessage;
+import com.swift.message.process.application.service.ParseMessage;
+import com.swift.message.process.domain.model.AppHdr;
 import com.swift.repository.InboundMessageMapper;
-import com.swift.util.XmlUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 收报监听（TCP Server）。收到报文只落库 PENDING_ROUTING，然后触发异步路由处理
+ * 收报监听（TCP Server）。
+ * 报文解析使用 SDK ParseMessage，技术回执使用轻量 extractTag。
  */
 @Slf4j
 @Component
@@ -28,14 +27,14 @@ public class InboundListener {
     private final int port;
     private ServerSocket server;
     private volatile boolean running;
-    
-    @Autowired
-    private AsyncRouter asyncRouter;
+    private final AsyncRouter asyncRouter;
 
     public InboundListener(InboundMessageMapper repo,
-                           @Value("${swift.inbound-port}") int port) {
+                           @Value("${swift.inbound-port}") int port,
+                           AsyncRouter asyncRouter) {
         this.repo = repo;
         this.port = port;
+        this.asyncRouter = asyncRouter;
     }
 
     @PostConstruct
@@ -60,60 +59,82 @@ public class InboundListener {
         try (client) {
             xml = new String(client.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 
-            // 解析报文类型和ID
-            String msgType = XmlUtils.detectType(xml);
+            // 优先用 SDK 解析 AppHdr（跳过技术回执格式）
+            AppHdr appHdr = parseAppHdrSafely(xml);
+            String msgType;
             String msgId;
-            
-            // 根据报文类型决定如何提取ID
-            if ("ACK".equals(msgType) || "NACK".equals(msgType)) {
-                // ACK/NACK报文使用OrgnlMsgId作为原报文ID
-                msgId = XmlUtils.extractTag(xml, "OrgnlMsgId");
-                log.info("[收报监听] 收到{}报文，关联原报文ID: {}", msgType, msgId);
-                // 如果无法提取 OrgnlMsgId，则使用随机生成的ID避免报文被丢弃
+
+            if (appHdr != null && appHdr.getMsgType() != null) {
+                msgType = appHdr.getMsgType().contains("pacs.008") ? "pacs.008" :
+                          appHdr.getMsgType().contains("pacs.002") ? "pacs.002" :
+                          appHdr.getMsgType();
+                msgId = appHdr.getUuid();
+                log.info("[收报监听] 收到 {} 报文, msgId={}", msgType, msgId);
+            } else if (xml.contains("<DeliveryNotif>")) {
+                msgType = "ACK";
+                msgId = extractTag(xml, "OrgnlMsgId");
+                log.info("[收报监听] 收到 DeliveryNotif 回执, 关联原报文ID: {}", msgId);
+            } else if (xml.contains("<FwdFailedNtfctn>")) {
+                msgType = "NACK";
+                msgId = extractTag(xml, "OrgnlMsgId");
+                log.info("[收报监听] 收到 FwdFailedNtfctn 回执, 关联原报文ID: {}", msgId);
                 if (msgId.isEmpty()) {
-                    msgId = "TEMP_ID_" + System.currentTimeMillis();
-                    log.warn("[收报监听] ACK/NACK报文无法提取OrgnlMsgId，使用临时ID: {}", msgId);
+                    msgId = "TEMP_" + System.currentTimeMillis() + "_" + Thread.currentThread().threadId();
+                    log.warn("[收报监听] 无法提取 OrgnlMsgId，使用临时ID: {}", msgId);
                 }
             } else {
-                // 普通报文使用BizMsgIdr
-                msgId = XmlUtils.extractTag(xml, "BizMsgIdr");
-                // 如果无法提取BizMsgIdr，尝试使用OrgnlMsgId（如pacs.002报文）
-                if (msgId.isEmpty()) {
-                    msgId = XmlUtils.extractTag(xml, "OrgnlMsgId");
-                    log.info("[收报监听] 使用OrgnlMsgId作为msgId: {}", msgId);
-                }
+                msgType = xml.contains("FIToFICstmrCdtTrf") ? "pacs.008" :
+                          xml.contains("FIToFIPmtStsRpt")  ? "pacs.002" : "UNKNOWN";
+                msgId = extractTag(xml, "BizMsgIdr");
+                if (msgId.isEmpty()) msgId = extractTag(xml, "OrgnlMsgId");
+                log.info("[收报监听] 兜底解析: type={}, msgId={}", msgType, msgId);
             }
-            
-            // 如果仍然无法提取ID，丢弃报文
+
             if (msgId.isEmpty()) {
                 log.warn("[收报监听] 无法提取报文ID，报文将被丢弃");
                 return;
             }
-            
+
             log.info("[收报监听] 开始处理报文 msgId={}, type={}", msgId, msgType);
-            
+
             InboundMessage message = new InboundMessage();
             message.setMsgId(msgId);
             message.setMsgType(msgType);
-            message.setSenderBic(XmlUtils.extractBic(xml, "Fr"));
-            message.setReceiverBic(XmlUtils.extractBic(xml, "To"));
+            message.setSenderBic(appHdr != null ? appHdr.getSenderBic() : null);
+            message.setReceiverBic(appHdr != null ? appHdr.getReceiverBic() : null);
             message.setRawContent(xml);
             message.setStatus(InboundMessage.PENDING_ROUTING);
             repo.save(message);
-            
+
             log.info("[收报监听] 报文已落库 msgId={}, type={}", msgId, msgType);
-            
-            // 提交异步路由处理（AsyncRouter内部使用线程池处理）
+
             asyncRouter.routeInboundMessage(message.getId());
             log.info("[收报监听] 报文路由任务已提交 msgId={}", msgId);
         } catch (DuplicateKeyException e) {
-            String msgId = xml != null ? XmlUtils.extractTag(xml, "BizMsgIdr") : "未知";
+            String msgId = xml != null ? extractTag(xml, "BizMsgIdr") : "unknown";
+            if (msgId.isEmpty()) msgId = extractTag(xml, "OrgnlMsgId");
             log.warn("[收报监听] 重复报文, 已忽略: msgId={}", msgId);
         } catch (IOException e) {
             log.error("[收报监听] 接收失败: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[收报监听] 未知异常: {}", e.getMessage());
         }
+    }
+
+    /** SDK 无法解析技术回执格式，提前跳过，避免日志 WARN */
+    private static AppHdr parseAppHdrSafely(String xml) {
+        if (xml.contains("<DeliveryNotif>") || xml.contains("<FwdFailedNtfctn>")) return null;
+        try {
+            return ParseMessage.appHdrParse(xml);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String extractTag(String xml, String tag) {
+        int s = xml.indexOf("<" + tag + ">");
+        int e = xml.indexOf("</" + tag + ">", s);
+        return (s < 0 || e < 0) ? "" : xml.substring(s + tag.length() + 2, e);
     }
 
     @PreDestroy
