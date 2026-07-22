@@ -1,4 +1,4 @@
-package com.swift.message.process;
+package com.swift.message.process.domain.exception;
 
 /** 构造报文时字段缺失或内容不符合 SDK 构造规则时抛出。 */
 public class MessageBuildException extends IllegalArgumentException {

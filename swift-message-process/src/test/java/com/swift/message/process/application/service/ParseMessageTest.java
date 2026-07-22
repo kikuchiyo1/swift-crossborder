@@ -1,5 +1,6 @@
-package com.swift.message.process;
+package com.swift.message.process.application.service;
 
+import com.swift.message.process.domain.exception.MessageParseException;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

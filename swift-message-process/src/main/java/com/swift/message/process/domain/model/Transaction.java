@@ -1,4 +1,4 @@
-package com.swift.message.process.model;
+package com.swift.message.process.domain.model;
 
 import lombok.Getter;
 import lombok.Setter;

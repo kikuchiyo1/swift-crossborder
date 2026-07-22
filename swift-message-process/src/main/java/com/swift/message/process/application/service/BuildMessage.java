@@ -1,10 +1,11 @@
-package com.swift.message.process;
+package com.swift.message.process.application.service;
 
-import com.swift.message.process.model.AppHdr;
-import com.swift.message.process.model.ChargeInfo;
-import com.swift.message.process.model.GroupHdr;
-import com.swift.message.process.model.PostalAddress;
-import com.swift.message.process.model.Transaction;
+import com.swift.message.process.domain.exception.MessageBuildException;
+import com.swift.message.process.domain.model.AppHdr;
+import com.swift.message.process.domain.model.ChargeInfo;
+import com.swift.message.process.domain.model.GroupHdr;
+import com.swift.message.process.domain.model.PostalAddress;
+import com.swift.message.process.domain.model.Transaction;
 
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
@@ -14,7 +15,7 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static com.swift.message.process.SwiftXmlConstants.*;
+import static com.swift.message.process.infrastructure.xml.SwiftXmlConstants.*;
 
 /** SWIFT ISO 20022 XML 报文构造入口。 */
 public final class BuildMessage {

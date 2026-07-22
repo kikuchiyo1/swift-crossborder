@@ -1,4 +1,4 @@
-package com.swift.message.process;
+package com.swift.message.process.infrastructure.xml;
 
 /** SWIFT ISO 20022 报文使用的 XML 元素名、属性名和命名空间。 */
 public final class SwiftXmlConstants {

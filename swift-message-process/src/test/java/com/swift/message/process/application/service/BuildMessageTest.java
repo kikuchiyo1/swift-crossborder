@@ -1,9 +1,10 @@
-package com.swift.message.process;
+package com.swift.message.process.application.service;
 
-import com.swift.message.process.model.AppHdr;
-import com.swift.message.process.model.GroupHdr;
-import com.swift.message.process.model.PostalAddress;
-import com.swift.message.process.model.Transaction;
+import com.swift.message.process.domain.exception.MessageBuildException;
+import com.swift.message.process.domain.model.AppHdr;
+import com.swift.message.process.domain.model.GroupHdr;
+import com.swift.message.process.domain.model.PostalAddress;
+import com.swift.message.process.domain.model.Transaction;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
