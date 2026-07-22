@@ -24,3 +24,7 @@ swift:
 
 simulator:
   enabled: true
+
+logging:
+  level:
+    com.swift.message.process: WARN
